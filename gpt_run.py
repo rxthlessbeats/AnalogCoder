@@ -15,6 +15,7 @@ import signal
 import json
 
 from analog_agent import get_chat_completion
+from autogen.code_utils import extract_code
 
 class TimeoutException(Exception):
     pass
@@ -37,8 +38,8 @@ parser.add_argument("--no_chain", action="store_true", default=False)
 parser.add_argument("--retrieval", action="store_true", default=True)
 parser.add_argument('--api_key', type=str)
 
-MULTI_AGENT_MODE: Literal["original", "captain", "captain+rag", "groupchat", "groupchat+rag"] = "original"
-USE_DOCKER: Literal["mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog", False] = "mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog"
+MULTI_AGENT_MODE: Literal["original", "captain", "captain+rag", "groupchat", "groupchat+rag"] = "captain"
+USE_DOCKER: Literal["mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog", False] = False  # "mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog"
 
 args = parser.parse_args()
 
@@ -114,34 +115,34 @@ circuit.SinusoidalVoltageSource('sin', 'Vin', circuit.gnd,
 # )
 
 
-# This function extracts the code from the generated content which in markdown format
-def extract_code(generated_content):
-    empty_code_error = 0
-    assert generated_content != "", "generated_content is empty"
-    regex = r".*?```.*?\n(.*?)```"
-    matches = re.finditer(regex, generated_content, re.DOTALL)
-    first_match = next(matches, None)
-    try:
-        code = first_match.group(1)
-        print("code", code)
-        code = "\n".join([line for line in code.split("\n") if len(line.strip()) > 0])
-    except:
-        code = ""
-        empty_code_error = 1
-        return empty_code_error, code
-    # Add necessary libraries
-    if not args.ngspice:
-        if "from PySpice.Spice.Netlist import Circuit" not in code:
-            code = "from PySpice.Spice.Netlist import Circuit\n" + code
-        if "from PySpice.Unit import *" not in code:
-            code = "from PySpice.Unit import *\n" + code
-    new_code = ""
-    for line in code.split("\n"):
-        new_code += line + "\n"
-        if "circuit.simulator()" in line:
-            break
+# # This function extracts the code from the generated content which in markdown format
+# def extract_code(generated_content):
+#     empty_code_error = 0
+#     assert generated_content != "", "generated_content is empty"
+#     regex = r".*?```.*?\n(.*?)```"
+#     matches = re.finditer(regex, generated_content, re.DOTALL)
+#     first_match = next(matches, None)
+#     try:
+#         code = first_match.group(1)
+#         print("code", code)
+#         code = "\n".join([line for line in code.split("\n") if len(line.strip()) > 0])
+#     except:
+#         code = ""
+#         empty_code_error = 1
+#         return empty_code_error, code
+#     # Add necessary libraries
+#     if not args.ngspice:
+#         if "from PySpice.Spice.Netlist import Circuit" not in code:
+#             code = "from PySpice.Spice.Netlist import Circuit\n" + code
+#         if "from PySpice.Unit import *" not in code:
+#             code = "from PySpice.Unit import *\n" + code
+#     new_code = ""
+#     for line in code.split("\n"):
+#         new_code += line + "\n"
+#         if "circuit.simulator()" in line:
+#             break
 
-    return empty_code_error, new_code
+#     return empty_code_error, new_code
 
 
 

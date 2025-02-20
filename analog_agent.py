@@ -217,7 +217,7 @@ class AnalogAgent(BaseModel):
             code_execution_config={"use_docker": self.use_docker, "work_dir": "./data"},
         )
         chat_result = user_proxy.initiate_chat(
-            assistant, message=f"{messages}\nMake sure you should ignore `Unsupported Ngspice version` Error.", clear_history=False
+            assistant, message=f"{messages}", clear_history=False
         )
         converter = ChatResultConverter(chat_result=chat_result)
         result = converter.convert_to_chat_completion()
@@ -251,7 +251,7 @@ class AnalogAgent(BaseModel):
             description=retrieve_data.__doc__,
         )
         chat_result = user_proxy.initiate_chat(
-            assistant, message=f"{messages}\nMake sure you should ignore `Unsupported Ngspice version` Error.", clear_history=False
+            assistant, message=f"{messages}", clear_history=False
         )
         converter = ChatResultConverter(chat_result=chat_result)
         result = converter.convert_to_chat_completion()
@@ -313,7 +313,7 @@ class AnalogAgent(BaseModel):
             # is_termination_msg=lambda x: "TERMINATE" in x.get("content"),
         )
         chat_result = captain_user_proxy.initiate_chat(
-            captain_agent, message=f"{messages}\nPlease just seek_experts_help\nMake sure you should ignore `Unsupported Ngspice version` Error.", max_turns=1
+            captain_agent, message=f"{messages}\nPlease just seek_experts_help", max_turns=1
         )
         converter = ChatResultConverter(chat_result=chat_result)
         result = converter.convert_to_chat_completion()
@@ -382,7 +382,7 @@ class AnalogAgent(BaseModel):
             description=retrieve_data.__doc__,
         )
         chat_result = captain_user_proxy.initiate_chat(
-            captain_agent, message=f"{messages}\nPlease just seek_experts_help.\nMake sure you should ignore `Unsupported Ngspice version` Error.", max_turns=1
+            captain_agent, message=f"{messages}\nPlease just seek_experts_help.", max_turns=1
         )
         converter = ChatResultConverter(chat_result=chat_result)
         result = converter.convert_to_chat_completion()
