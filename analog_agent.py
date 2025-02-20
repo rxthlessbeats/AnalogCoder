@@ -2,7 +2,6 @@ from typing import Any, Literal
 import datetime
 
 import httpx
-from sympy import Union
 from openai import AzureOpenAI
 import autogen
 from autogen import ChatResult, UserProxyAgent, config_list_from_json
@@ -126,6 +125,7 @@ class ChatResultConverter(BaseModel):
         # NOTE: 把對話紀錄翻轉，因為Analog Coder是取第一個當作結果
         if self.revert is True:
             self.chat_result.chat_history = self.chat_result.chat_history[::-1]
+        self.chat_result.chat_history = self.chat_result.chat_history[:-1]
         return self
 
     @computed_field
@@ -298,6 +298,7 @@ class AnalogAgent(BaseModel):
             llm_config=llm_config,
             human_input_mode="NEVER",
             code_execution_config=False,
+            # system_message="Make sure the final anwser contains the PySpice Code.",
         )
         captain_agent = CaptainAgent(
             name="captain_agent",
@@ -313,7 +314,10 @@ class AnalogAgent(BaseModel):
             # is_termination_msg=lambda x: "TERMINATE" in x.get("content"),
         )
         chat_result = captain_user_proxy.initiate_chat(
-            captain_agent, message=f"{messages}\nPlease just seek_experts_help", max_turns=1
+            captain_agent,
+            message=f"{messages}\nPlease just seek_experts_help",
+            max_turns=1,
+            summary_method="last_msg",
         )
         converter = ChatResultConverter(chat_result=chat_result)
         result = converter.convert_to_chat_completion()
