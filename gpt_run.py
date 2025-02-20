@@ -831,6 +831,7 @@ def work(task, input, output, task_id, it, background, task_type, flog,
                     model=args.model,
                     messages=messages,
                     mode=MULTI_AGENT_MODE,
+                    use_docker="mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog"
                 )
                 break
             except openai.APIStatusError as e:
@@ -1228,6 +1229,7 @@ def work(task, input, output, task_id, it, background, task_type, flog,
                         model=args.model,
                         messages=messages,
                         mode=MULTI_AGENT_MODE,
+                        use_docker="mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog"
                     )
                     break
             except openai.APIStatusError as e:
@@ -1311,6 +1313,7 @@ def get_retrieval(task, task_id) -> list[int]:
                 model=args.model,
                 messages=messages,
                 mode=MULTI_AGENT_MODE,
+                use_docker="mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog"
             )
         except openai.APIStatusError as e:
             print("Encountered an APIStatusError. Details:")

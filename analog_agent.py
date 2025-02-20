@@ -393,7 +393,7 @@ def get_chat_completion(
     model: str,
     messages: list[dict[str, str]],
     mode: Literal["original", "captain", "captain+rag", "groupchat", "groupchat+rag"],
-    use_docker: Union[str, bool] = False,
+    use_docker: Literal["mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog", False] = False,
 ) -> ChatCompletion:
     analog_agent = AnalogAgent(use_docker=use_docker)
     if mode == "original":
