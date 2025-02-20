@@ -183,7 +183,7 @@ class ChatResultConverter(BaseModel):
 
 
 class AnalogAgent(BaseModel):
-    use_docker: Union[str, bool] = Field(
+    use_docker: Literal["mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog", False] = Field(
         default=False,
         title="Use Docker or Not",
         description="Use Docker or Not, if you wanna use, please provide the docker image name.",

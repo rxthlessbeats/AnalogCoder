@@ -38,6 +38,7 @@ parser.add_argument("--retrieval", action="store_true", default=True)
 parser.add_argument('--api_key', type=str)
 
 MULTI_AGENT_MODE: Literal["original", "captain", "captain+rag", "groupchat", "groupchat+rag"] = "original"
+USE_DOCKER: Literal["mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog", False] = "mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog"
 
 args = parser.parse_args()
 
@@ -831,7 +832,7 @@ def work(task, input, output, task_id, it, background, task_type, flog,
                     model=args.model,
                     messages=messages,
                     mode=MULTI_AGENT_MODE,
-                    use_docker="mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog"
+                    use_docker=USE_DOCKER
                 )
                 break
             except openai.APIStatusError as e:
@@ -1229,7 +1230,7 @@ def work(task, input, output, task_id, it, background, task_type, flog,
                         model=args.model,
                         messages=messages,
                         mode=MULTI_AGENT_MODE,
-                        use_docker="mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog"
+                    use_docker=USE_DOCKER
                     )
                     break
             except openai.APIStatusError as e:
@@ -1313,7 +1314,7 @@ def get_retrieval(task, task_id) -> list[int]:
                 model=args.model,
                 messages=messages,
                 mode=MULTI_AGENT_MODE,
-                use_docker="mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog"
+                use_docker=USE_DOCKER
             )
         except openai.APIStatusError as e:
             print("Encountered an APIStatusError. Details:")
