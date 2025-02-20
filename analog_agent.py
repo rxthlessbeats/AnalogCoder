@@ -1,7 +1,8 @@
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 import datetime
 
 import httpx
+from sympy import Union
 from openai import AzureOpenAI
 import autogen
 from autogen import ChatResult, UserProxyAgent, config_list_from_json
@@ -182,6 +183,13 @@ class ChatResultConverter(BaseModel):
 
 
 class AnalogAgent(BaseModel):
+    use_docker: Union[str, bool] = Field(
+        default=False,
+        title="Use Docker or Not",
+        description="Use Docker or Not, if you wanna use, please provide the docker image name.",
+        examples=["mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog", False],
+    )
+
     def use_chat_completion(self, model: str, messages: list[dict[str, str]]) -> ChatCompletion:
         llm_config = get_config_dict(model=model)
         client = AzureOpenAI(
@@ -206,7 +214,7 @@ class AnalogAgent(BaseModel):
             human_input_mode="NEVER",
             is_termination_msg=lambda x: "TERMINATE" in x.get("content"),
             max_consecutive_auto_reply=10,
-            code_execution_config={"use_docker": False, "work_dir": "./data"},
+            code_execution_config={"use_docker": self.use_docker, "work_dir": "./data"},
         )
         chat_result = user_proxy.initiate_chat(
             assistant, message=f"{messages}", clear_history=False
@@ -228,7 +236,12 @@ class AnalogAgent(BaseModel):
             human_input_mode="NEVER",
             is_termination_msg=lambda x: "TERMINATE" in x.get("content"),
             max_consecutive_auto_reply=10,
-            code_execution_config={"use_docker": False, "work_dir": "./data"},
+            code_execution_config={
+                "timeout": 300,
+                "work_dir": "./data",
+                # "last_n_messages": 1,
+                "use_docker": self.use_docker,
+            },
         )
         autogen.agentchat.register_function(
             f=retrieve_data,
@@ -270,7 +283,7 @@ class AnalogAgent(BaseModel):
                     "timeout": 300,
                     "work_dir": "./data",
                     # "last_n_messages": 1,
-                    "use_docker": False,
+                    "use_docker": self.use_docker,
                 },
                 "coding": True,
             },
@@ -289,7 +302,12 @@ class AnalogAgent(BaseModel):
         captain_agent = CaptainAgent(
             name="captain_agent",
             llm_config=llm_config,
-            code_execution_config={"use_docker": False, "work_dir": "./data"},
+            code_execution_config={
+                "timeout": 300,
+                "work_dir": "./data",
+                # "last_n_messages": 1,
+                "use_docker": self.use_docker,
+            },
             agent_config_save_path="./data",
             nested_config=nested_config,
             # is_termination_msg=lambda x: "TERMINATE" in x.get("content"),
@@ -327,7 +345,7 @@ class AnalogAgent(BaseModel):
                     "timeout": 300,
                     "work_dir": "./data",
                     # "last_n_messages": 1,
-                    "use_docker": False,
+                    "use_docker": self.use_docker,
                 },
                 "coding": True,
             },
@@ -346,7 +364,12 @@ class AnalogAgent(BaseModel):
         captain_agent = CaptainAgent(
             name="captain_agent",
             llm_config=llm_config,
-            code_execution_config={"use_docker": False, "work_dir": "./data"},
+            code_execution_config={
+                "timeout": 300,
+                "work_dir": "./data",
+                # "last_n_messages": 1,
+                "use_docker": self.use_docker,
+            },
             # agent_config_save_path="./data",
             nested_config=nested_config,
             # is_termination_msg=lambda x: "TERMINATE" in x.get("content"),
@@ -370,8 +393,9 @@ def get_chat_completion(
     model: str,
     messages: list[dict[str, str]],
     mode: Literal["original", "captain", "captain+rag", "groupchat", "groupchat+rag"],
+    use_docker: Union[str, bool] = False,
 ) -> ChatCompletion:
-    analog_agent = AnalogAgent()
+    analog_agent = AnalogAgent(use_docker=use_docker)
     if mode == "original":
         chat_result = analog_agent.use_chat_completion(model=model, messages=messages)
     elif "captain" in mode:
