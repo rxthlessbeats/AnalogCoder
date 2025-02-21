@@ -141,9 +141,9 @@ class ChatResultConverter(BaseModel):
         # 讓 summary 出現在第一個
         history_alike_summary.extend(self.chat_result.chat_history)
         self.chat_result.chat_history = history_alike_summary
-        console.print("+=" * 20, "Chat History Start", "+=" * 20)
-        console.print(f"{self.chat_result.chat_history}")
-        console.print("+=" * 20, "Chat History End", "+=" * 20)
+        # console.print("+=" * 20, "Chat History Start", "+=" * 20)
+        # console.print(f"{self.chat_result.chat_history}")
+        # console.print("+=" * 20, "Chat History End", "+=" * 20)
         return self
 
     @computed_field
@@ -227,8 +227,8 @@ class AnalogAgent(BaseModel):
         recipient: CaptainAgent | autogen.ConversableAgent,
         summary_args: dict[str, Any],
     ) -> str:
+        message_with_codes: list[CodeBlock] = []
         if isinstance(recipient, CaptainAgent):
-            message_with_codes: list[CodeBlock] = []
             for messages_list in recipient.assistant.chat_messages.values():
                 for message in messages_list:
                     message_content = message.get("content")
@@ -241,19 +241,30 @@ class AnalogAgent(BaseModel):
                         message_with_codes.append(
                             CodeBlock(code_type=code_type, code_content=code_content)
                         )
-            if message_with_codes:
-                message_with_code = message_with_codes[-1]
-                last_message = message_with_code.code_in_markdown
-                console.print(
-                    "Code Found from the last message, replacing the summary using the following code block:",
-                    style="bold green",
-                )
-                console.print(Markdown(message_with_code.code_in_markdown))
-            else:
-                last_message = recipient.last_message(sender)["content"]
-                console.print("No Code Found from the last message", style="bold red")
+        else:
+            for messages_list in recipient.chat_messages.values():
+                for message in messages_list:
+                    message_content = message.get("content")
+                    if message_content is None:
+                        continue
+                    code_messages = extract_code(text=message_content)
+                    for code_type, code_content in code_messages:
+                        if code_type == "unknown":
+                            continue
+                        message_with_codes.append(
+                            CodeBlock(code_type=code_type, code_content=code_content)
+                        )
+        if message_with_codes:
+            message_with_code = message_with_codes[-1]
+            last_message = message_with_code.code_in_markdown
+            console.print(
+                "Code Found from the last message, replacing the summary using the following code block:",
+                style="bold green",
+            )
+            console.print(Markdown(message_with_code.code_in_markdown))
         else:
             last_message = recipient.last_message(sender)["content"]
+            console.print("No Code Found from the last message", style="bold red")
         return last_message
 
     def _get_cache(self, llm_config: dict[str, Any]) -> Cache:
@@ -278,33 +289,74 @@ class AnalogAgent(BaseModel):
         self, model: str, messages: list[dict[str, str]], use_rag: bool
     ) -> ChatCompletion:
         llm_config = get_config_dict(model=model)
-        cache = self._get_cache(llm_config=llm_config)
-        assistant = autogen.AssistantAgent(
-            name="assistant",
+        self._get_cache(llm_config=llm_config)
+        pi_proxy = autogen.UserProxyAgent(
+            name="pi_proxy",
+            human_input_mode="NEVER",
             llm_config=llm_config,
             is_termination_msg=lambda x: "TERMINATE" in x.get("content"),
         )
-        # create a UserProxyAgent instance named "user_proxy"
-        user_proxy = autogen.UserProxyAgent(
-            name="user_proxy",
+        executor = autogen.UserProxyAgent(
+            name="executor",
             human_input_mode="NEVER",
             is_termination_msg=lambda x: "TERMINATE" in x.get("content"),
-            max_consecutive_auto_reply=10,
             code_execution_config={"use_docker": self.use_docker, "work_dir": "./.cache"},
         )
+        circuit_agent = autogen.AssistantAgent(
+            name="assistant",
+            human_input_mode="NEVER",
+            llm_config=llm_config,
+            is_termination_msg=lambda x: "TERMINATE" in x.get("content"),
+        )
+        cos_agent = autogen.AssistantAgent(
+            name="assistant",
+            human_input_mode="NEVER",
+            llm_config=llm_config,
+            is_termination_msg=lambda x: "TERMINATE" in x.get("content"),
+        )
+        math_reasoning_agent = autogen.AssistantAgent(
+            name="assistant",
+            human_input_mode="NEVER",
+            llm_config=llm_config,
+            is_termination_msg=lambda x: "TERMINATE" in x.get("content"),
+        )
+        graph_analysis_agent = autogen.AssistantAgent(
+            name="assistant",
+            human_input_mode="NEVER",
+            llm_config=llm_config,
+            is_termination_msg=lambda x: "TERMINATE" in x.get("content"),
+        )
+        # if use_rag is True:
+        #     autogen.agentchat.register_function(
+        #         f=retrieve_data,
+        #         caller=pi_proxy,
+        #         executor=executor,
+        #         name=retrieve_data.__name__,
+        #         description=retrieve_data.__doc__,
+        #     )
+        proxies = [pi_proxy]
+        agents = [circuit_agent, cos_agent, math_reasoning_agent, graph_analysis_agent]
         if use_rag is True:
-            autogen.agentchat.register_function(
-                f=retrieve_data,
-                caller=assistant,
-                executor=user_proxy,
-                name=retrieve_data.__name__,
-                description=retrieve_data.__doc__,
-            )
-        chat_result = user_proxy.initiate_chat(
-            assistant,
-            message=f"{messages}\nPlease make sure the final answer contains the PySpice Code.",
-            clear_history=False,
-            cache=cache,
+            for agent in agents:
+                d_retrieve_content = agent.register_for_llm(
+                    description="retrieve content for code generation and question answering.",
+                    api_style="tool",
+                )(retrieve_data)
+
+            for proxy in proxies:
+                proxy.register_for_execution()(d_retrieve_content)
+        groupchat = autogen.GroupChat(
+            agents=[*proxies, executor, *agents],
+            messages=[],
+            max_round=12,
+            speaker_selection_method="round_robin",
+            allow_repeat_speaker=False,
+        )
+        manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=llm_config)
+
+        # Start chatting with boss_aid as this is the user proxy agent.
+        chat_result = pi_proxy.initiate_chat(
+            recipient=manager, message=f"{messages}", summary_method=self._summary_method
         )
         converter = ChatResultConverter(chat_result=chat_result)
         result = converter.convert_to_chat_completion()
