@@ -1,3 +1,4 @@
+from pathlib import Path
 from openai import AzureOpenAI
 from typing import Literal
 import httpx
@@ -29,7 +30,7 @@ parser.add_argument('--temperature', type=float, default=0.5)
 parser.add_argument('--num_per_task', type=int, default=1)
 parser.add_argument('--num_of_retry', type=int, default=1)
 parser.add_argument("--num_of_done", type=int, default=0)
-parser.add_argument("--task_id", type=int, default=13)
+parser.add_argument("--task_id", type=int, default=17)
 parser.add_argument("--ngspice", action="store_true", default=False)
 parser.add_argument("--no_prompt", action="store_true", default=False)
 parser.add_argument("--skill", action="store_true", default=False)
@@ -1331,6 +1332,7 @@ def get_retrieval(task, task_id) -> list[int]:
             time.sleep(30)
         answer = completion.choices[0].message.content
         print("answer", answer)
+        Path(f"{args.model.replace('-', '')}/p{str(task_id)}").mkdir(parents=True, exist_ok=True)
         fretre_path = os.path.join(args.model.replace("-", ""), f"p{str(task_id)}", "retrieve.txt")
         fretre = open(fretre_path, "w")
         fretre.write(answer)
