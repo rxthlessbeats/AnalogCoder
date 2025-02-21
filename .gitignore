@@ -177,3 +177,4 @@ data/
 configs/
 /docs/*.pdf
 /docs/*.txt
+/logs/
