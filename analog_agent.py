@@ -258,7 +258,7 @@ class AnalogAgent(BaseModel):
             message_with_code = message_with_codes[-1]
             last_message = message_with_code.code_in_markdown
             console.print(
-                "Code Found from the last message, replacing the summary using the following code block:",
+                f"Code Block Found from the last message in type {message_with_code.code_type}, replacing the summary using the following code block:",
                 style="bold green",
             )
             console.print(Markdown(message_with_code.code_in_markdown))
