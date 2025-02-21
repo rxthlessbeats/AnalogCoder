@@ -1,4 +1,5 @@
 from typing import Any, Literal
+from pathlib import Path
 import datetime
 
 import httpx
@@ -26,12 +27,7 @@ def get_config_dict(model: str) -> dict[str, Any]:
     config_list = config_list_from_json(
         env_or_file="./configs/OAI_CONFIG_LIST", filter_dict={"model": model}
     )
-    llm_config = {
-        "timeout": 60,
-        "temperature": 0.5,
-        "cache_seed": None,
-        "config_list": config_list,
-    }
+    llm_config = {"timeout": 60, "temperature": 0.5, "cache_seed": 43, "config_list": config_list}
     return llm_config
 
 
@@ -235,12 +231,13 @@ class AnalogAgent(BaseModel):
                     if message_content is None:
                         continue
                     code_messages = extract_code(text=message_content)
+                    all_codes = []
                     for code_type, code_content in code_messages:
-                        if code_type == "unknown":
-                            continue
-                        message_with_codes.append(
-                            CodeBlock(code_type=code_type, code_content=code_content)
-                        )
+                        if code_type == "python":
+                            all_codes.append(
+                                CodeBlock(code_type=code_type, code_content=code_content)
+                            )
+                    message_with_codes.extend(all_codes[-1:])
         else:
             for messages_list in recipient.chat_messages.values():
                 for message in messages_list:
@@ -248,12 +245,13 @@ class AnalogAgent(BaseModel):
                     if message_content is None:
                         continue
                     code_messages = extract_code(text=message_content)
+                    all_codes = []
                     for code_type, code_content in code_messages:
-                        if code_type == "unknown":
-                            continue
-                        message_with_codes.append(
-                            CodeBlock(code_type=code_type, code_content=code_content)
-                        )
+                        if code_type == "python":
+                            all_codes.append(
+                                CodeBlock(code_type=code_type, code_content=code_content)
+                            )
+                    message_with_codes.extend(all_codes[-1:])
         if message_with_codes:
             message_with_code = message_with_codes[-1]
             last_message = message_with_code.code_in_markdown
@@ -444,6 +442,8 @@ def get_chat_completion(
     mode: Literal["original", "captain", "captain+rag", "groupchat", "groupchat+rag"],
     use_docker: Literal["mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog", False] = False,
 ) -> ChatCompletion:
+    cache_path = Path("./.cache")
+    cache_path.mkdir(parents=True, exist_ok=True)
     analog_agent = AnalogAgent(use_docker=use_docker)
     if mode == "original":
         chat_result = analog_agent.use_chat_completion(model=model, messages=messages)
