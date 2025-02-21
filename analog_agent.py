@@ -5,9 +5,11 @@ import httpx
 from openai import AzureOpenAI
 import autogen
 from autogen import ChatResult, UserProxyAgent, config_list_from_json
+import logfire
 import chromadb
 from pydantic import Field, BaseModel, computed_field, model_validator
 from rich.console import Console
+from autogen.cache import Cache
 from chromadb.config import Settings
 from openai.types.completion_usage import CompletionUsage
 from openai.types.chat.chat_completion import Choice, ChatCompletion
@@ -17,6 +19,7 @@ from autogen.agentchat.contrib.retrieve_user_proxy_agent import RetrieveUserProx
 from chromadb.utils.embedding_functions.openai_embedding_function import OpenAIEmbeddingFunction
 
 console = Console()
+logfire.configure(send_to_logfire=False)
 
 
 def get_config_dict(model: str) -> dict[str, Any]:
@@ -100,6 +103,19 @@ def retrieve_data(query: str) -> str:
     return retrieve_result.chat_history[-1]["content"]
 
 
+def code_sumary_method(
+    sender: autogen.ConversableAgent,
+    recipient: autogen.ConversableAgent,
+    summary_args: dict[str, Any],
+) -> str:
+    # message_dict = recipient.last_message(sender)
+    messages = recipient.chat_messages[sender]
+    summary_content = messages[-1].get("content")
+    if summary_content:
+        return summary_content
+    return "Error Occurred in Summary Method"
+
+
 class ChatResultConverter(BaseModel):
     chat_result: ChatResult = Field(
         ...,
@@ -125,7 +141,8 @@ class ChatResultConverter(BaseModel):
         # NOTE: 把對話紀錄翻轉，因為Analog Coder是取第一個當作結果
         if self.revert is True:
             self.chat_result.chat_history = self.chat_result.chat_history[::-1]
-        self.chat_result.chat_history = self.chat_result.chat_history[:-1]
+        for chat_history_dict in self.chat_result.chat_history:
+            logfire.info("Message History", **chat_history_dict)
         return self
 
     @computed_field
@@ -190,6 +207,13 @@ class AnalogAgent(BaseModel):
         examples=["mtkomcr.mediatek.inc/srv-aith/mtkllm-sdk-analog", False],
     )
 
+    def _get_cache(self, llm_config: dict[str, Any]) -> Cache:
+        cache = None
+        cache_seed = llm_config.get("cache_seed")
+        if cache_seed:
+            cache = Cache.disk(cache_seed=42, cache_path_root=".cache")
+        return cache
+
     def use_chat_completion(self, model: str, messages: list[dict[str, str]]) -> ChatCompletion:
         llm_config = get_config_dict(model=model)
         client = AzureOpenAI(
@@ -203,6 +227,7 @@ class AnalogAgent(BaseModel):
 
     def use_groupchat(self, model: str, messages: list[dict[str, str]]) -> ChatCompletion:
         llm_config = get_config_dict(model=model)
+        cache = self._get_cache(llm_config=llm_config)
         assistant = autogen.AssistantAgent(
             name="assistant",
             llm_config=llm_config,
@@ -217,7 +242,7 @@ class AnalogAgent(BaseModel):
             code_execution_config={"use_docker": self.use_docker, "work_dir": "./data"},
         )
         chat_result = user_proxy.initiate_chat(
-            assistant, message=f"{messages}", clear_history=False
+            assistant, message=f"{messages}", clear_history=False, cache=cache
         )
         converter = ChatResultConverter(chat_result=chat_result)
         result = converter.convert_to_chat_completion()
@@ -225,6 +250,7 @@ class AnalogAgent(BaseModel):
 
     def use_rag_groupchat(self, model: str, messages: list[dict[str, str]]) -> ChatCompletion:
         llm_config = get_config_dict(model=model)
+        cache = self._get_cache(llm_config=llm_config)
         assistant = autogen.AssistantAgent(
             name="assistant",
             llm_config=llm_config,
@@ -251,7 +277,7 @@ class AnalogAgent(BaseModel):
             description=retrieve_data.__doc__,
         )
         chat_result = user_proxy.initiate_chat(
-            assistant, message=f"{messages}", clear_history=False
+            assistant, message=f"{messages}", clear_history=False, cache=cache
         )
         converter = ChatResultConverter(chat_result=chat_result)
         result = converter.convert_to_chat_completion()
@@ -270,7 +296,7 @@ class AnalogAgent(BaseModel):
             ChatCompletion: The chat result from the Captain Agent.
         """
         llm_config = get_config_dict(model=model)
-
+        cache = self._get_cache(llm_config=llm_config)
         nested_config = {
             "autobuild_init_config": {
                 "config_file_or_env": "./configs/OAI_CONFIG_LIST",
@@ -282,7 +308,7 @@ class AnalogAgent(BaseModel):
                 "code_execution_config": {
                     "timeout": 300,
                     "work_dir": "./data",
-                    # "last_n_messages": 1,
+                    "last_n_messages": 1,
                     "use_docker": self.use_docker,
                 },
                 "coding": True,
@@ -298,7 +324,7 @@ class AnalogAgent(BaseModel):
             llm_config=llm_config,
             human_input_mode="NEVER",
             code_execution_config=False,
-            # system_message="Make sure the final anwser contains the PySpice Code.",
+            # system_message="Make sure the final answer contains the PySpice Code.",
         )
         captain_agent = CaptainAgent(
             name="captain_agent",
@@ -306,7 +332,7 @@ class AnalogAgent(BaseModel):
             code_execution_config={
                 "timeout": 300,
                 "work_dir": "./data",
-                # "last_n_messages": 1,
+                "last_n_messages": 1,
                 "use_docker": self.use_docker,
             },
             agent_config_save_path="./data",
@@ -317,76 +343,8 @@ class AnalogAgent(BaseModel):
             captain_agent,
             message=f"{messages}\nPlease just seek_experts_help",
             max_turns=1,
-            summary_method="last_msg",
-        )
-        converter = ChatResultConverter(chat_result=chat_result)
-        result = converter.convert_to_chat_completion()
-        return result
-
-    def use_rag_captain(self, model: str, messages: list[dict[str, str]]) -> ChatCompletion:
-        """A Captain Agent by using autogen.
-
-        [ref](https://docs.ag2.ai/docs/use-cases/notebooks/notebooks/agentchat_captainagent).
-
-        Args:
-            model (str): The model name you want to use.
-            messages (list[dict[str, str]]): The messages you want to chat with the Captain Agent.
-
-        Returns:
-            ChatCompletion: The chat result from the Captain Agent.
-        """
-        llm_config = get_config_dict(model=model)
-
-        nested_config = {
-            "autobuild_init_config": {
-                "config_file_or_env": "./configs/OAI_CONFIG_LIST",
-                "builder_model": model,
-                "agent_model": model,
-            },
-            "autobuild_build_config": {
-                "default_llm_config": {"temperature": 0.5, "top_p": 0.95, "max_tokens": 2048},
-                "code_execution_config": {
-                    "timeout": 300,
-                    "work_dir": "./data",
-                    # "last_n_messages": 1,
-                    "use_docker": self.use_docker,
-                },
-                "coding": True,
-            },
-            "autobuild_tool_config": {"tool_root": "tools", "retriever": "all-mpnet-base-v2"},
-            "group_chat_config": {"max_round": 10},
-            "group_chat_llm_config": None,
-            "max_turns": 5,
-        }
-
-        captain_user_proxy = UserProxyAgent(
-            name="captain_user_proxy",
-            llm_config=llm_config,
-            human_input_mode="NEVER",
-            code_execution_config=False,
-        )
-        captain_agent = CaptainAgent(
-            name="captain_agent",
-            llm_config=llm_config,
-            code_execution_config={
-                "timeout": 300,
-                "work_dir": "./data",
-                # "last_n_messages": 1,
-                "use_docker": self.use_docker,
-            },
-            # agent_config_save_path="./data",
-            nested_config=nested_config,
-            # is_termination_msg=lambda x: "TERMINATE" in x.get("content"),
-        )
-        autogen.agentchat.register_function(
-            f=retrieve_data,
-            caller=captain_user_proxy,
-            executor=captain_agent,
-            name=retrieve_data.__name__,
-            description=retrieve_data.__doc__,
-        )
-        chat_result = captain_user_proxy.initiate_chat(
-            captain_agent, message=f"{messages}\nPlease just seek_experts_help.", max_turns=1
+            summary_method=code_sumary_method,
+            cache=cache,
         )
         converter = ChatResultConverter(chat_result=chat_result)
         result = converter.convert_to_chat_completion()
@@ -404,9 +362,9 @@ def get_chat_completion(
         chat_result = analog_agent.use_chat_completion(model=model, messages=messages)
     elif "captain" in mode:
         if "rag" in mode:
-            chat_result = analog_agent.use_rag_captain(model=model, messages=messages)
-        else:
-            chat_result = analog_agent.use_captain(model=model, messages=messages)
+            # chat_result = analog_agent.use_rag_captain(model=model, messages=messages)
+            raise NotImplementedError("Not implemented yet.")
+        chat_result = analog_agent.use_captain(model=model, messages=messages)
     elif "groupchat" in mode:
         if "rag" in mode:
             chat_result = analog_agent.use_rag_groupchat(model=model, messages=messages)

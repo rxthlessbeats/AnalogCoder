@@ -918,12 +918,7 @@ def work(task, input, output, task_id, it, background, task_type, flog,
         except:
             pass
 
-    print("+="*30)
-    print(answer)
     empty_code_error, raw_code = extract_code(answer)
-    print("+="*30)
-    print(raw_code)
-    print("+="*30)
     operating_point_path = "{}/p{}/{}/p{}_{}_{}_op.txt".format(model_dir, task_id, it, task_id, it, 0)
     if not args.ngspice and "simulator = circuit.simulator()" not in raw_code:
         raw_code += "\nsimulator = circuit.simulator()\n"
