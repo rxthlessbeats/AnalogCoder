@@ -15,7 +15,7 @@ import signal
 import json
 
 from analog_agent import get_chat_completion
-# from autogen.code_utils import extract_code
+from autogen.code_utils import extract_code as ag_extract_code
 
 class TimeoutException(Exception):
     pass
@@ -29,7 +29,7 @@ parser.add_argument('--temperature', type=float, default=0.5)
 parser.add_argument('--num_per_task', type=int, default=1)
 parser.add_argument('--num_of_retry', type=int, default=1)
 parser.add_argument("--num_of_done", type=int, default=0)
-parser.add_argument("--task_id", type=int, default=1)
+parser.add_argument("--task_id", type=int, default=13)
 parser.add_argument("--ngspice", action="store_true", default=False)
 parser.add_argument("--no_prompt", action="store_true", default=False)
 parser.add_argument("--skill", action="store_true", default=False)
@@ -1266,10 +1266,14 @@ def work(task, input, output, task_id, it, background, task_type, flog,
         fwrite_output.write("\n----------\n")
         fwrite_output.write(answer)
 
+        # print("+="*20, "Answer HERE", "+="*20)
+        # print(answer)
+        # print("+="*20, "Answer END", "+="*20)
         empty_code_error, code = extract_code(answer)
-        print("-="*30)
-        print(code)
-        print("-="*30)
+        # print("+="*20, "Code HERE", "+="*20)
+        # print(code)
+        # print("+="*20, "Code END", "+="*20)
+        # exit()
 
 
         operating_point_path = "{}/p{}/{}/p{}_{}_{}_op.txt".format(model_dir, task_id, it, task_id, it, code_id)

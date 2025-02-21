@@ -175,3 +175,5 @@ cython_debug/
 gpt4/
 data/
 configs/
+/docs/*.pdf
+/docs/*.txt
