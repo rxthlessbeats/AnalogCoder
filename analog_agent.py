@@ -27,7 +27,12 @@ def get_config_dict(model: str) -> dict[str, Any]:
     config_list = config_list_from_json(
         env_or_file="./configs/OAI_CONFIG_LIST", filter_dict={"model": model}
     )
-    llm_config = {"timeout": 60, "temperature": 0.5, "cache_seed": 43, "config_list": config_list}
+    llm_config = {
+        "timeout": 60,
+        "temperature": 0.5,
+        "cache_seed": None,
+        "config_list": config_list
+    }
     return llm_config
 
 
